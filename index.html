@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة تحكم الامتحان</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
+<script>window.supabase||document.write('<script src="supabase.js"><\/script>');</script>   <!-- اختياري: نسخة محلية بجوار index.html -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --ink:#16212C; --muted:#5E6B78; --paper:#F3F5F7; --surface:#FFFFFF; --line:#DDE3E9;
+  --teal:#0B6B63; --teal-ink:#08514B; --teal-soft:#E1F1EF;
+  --coral:#C23B55; --coral-soft:#FBE9ED;
+  --amber:#8F5600; --amber-soft:#FFF1D6;
+  --green:#1E7F52; --green-soft:#E3F4EB;
+  --slate-soft:#E8ECF0;
+  --radius:10px;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'IBM Plex Sans Arabic',Tahoma,'Segoe UI',sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate;display:inline-block}
+.hidden{display:none!important}
+
+/* ---------- buttons & fields ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500;white-space:nowrap;transition:background .15s,border-color .15s}
+.btn:hover{background:var(--slate-soft)}
+.btn.primary{background:var(--teal);border-color:var(--teal);color:#fff}
+.btn.primary:hover{background:var(--teal-ink)}
+.btn.danger{background:var(--coral);border-color:var(--coral);color:#fff}
+.btn.danger:hover{background:#A52F47}
+.btn.outline-danger{border-color:#E7B5C0;color:var(--coral);background:var(--surface)}
+.btn.outline-danger:hover{background:var(--coral-soft)}
+.btn.sm{padding:4px 10px;font-size:13px;border-radius:7px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn svg{width:16px;height:16px;flex:none}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-weight:600;font-size:14px}
+input[type=text],input[type=email],input[type=password],input[type=search],select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 12px;min-height:38px}
+input:focus,select:focus{border-color:var(--teal)}
+
+/* ---------- login ---------- */
+#login{min-height:100vh;display:grid;place-items:center;padding:24px}
+.login-box{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:32px}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-mark{width:46px;height:46px;border-radius:50%;background:#fff;display:grid;place-items:center;flex:none;overflow:hidden;box-shadow:0 0 0 2px rgba(0,0,0,.08)}
+.brand-mark img{width:100%;height:100%;object-fit:cover;display:block}
+.brand-mark svg{width:22px;height:22px;stroke:#fff}
+.brand h1{margin:0;font-size:20px;line-height:1.3}
+.brand small{display:block;color:var(--muted);font-size:13px;font-weight:400;direction:ltr;text-align:right}
+.login-box form{margin-top:28px;display:flex;flex-direction:column;gap:16px}
+.err{color:var(--coral);font-size:14px;min-height:22px;margin:0}
+
+/* ---------- app shell ---------- */
+header.top{background:var(--surface);border-bottom:1px solid var(--line)}
+.wrap{max-width:1280px;margin:0 auto;padding:0 20px}
+.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:68px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+.top-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.sync{display:inline-flex;align-items:center;gap:8px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block}
+.sync.bad i{background:var(--coral)}
+main{padding:20px 0 56px}
+
+/* KPI strip */
+.kpis{display:grid;grid-template-columns:1.4fr repeat(4,1fr);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.kpi{padding:16px 20px;border-inline-start:1px solid var(--line)}
+.kpi:first-child{border-inline-start:0;background:var(--teal-soft)}
+.kpi b{display:block;font-size:30px;line-height:1.2;font-weight:700}
+.kpi:first-child b{font-size:42px;color:var(--teal-ink)}
+.kpi span{color:var(--muted);font-size:14px}
+.kpi:first-child span{color:var(--teal-ink);font-weight:600}
+
+/* pager */
+.pager{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+.pager .pg{display:flex;align-items:center;gap:10px}
+.pager:empty{display:none}
+
+/* download bar */
+.dlbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px;padding:14px 18px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.dltext{flex:1;min-width:220px;display:flex;flex-direction:column}
+.dltext span{color:var(--muted);font-size:13px}
+
+/* tabs */
+.tabs{display:flex;gap:4px;margin:24px 0 0;border-bottom:1px solid var(--line)}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:10px 18px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:-1px}
+.tab[aria-selected=true]{color:var(--teal-ink);border-bottom-color:var(--teal)}
+.tab .count{background:var(--slate-soft);color:var(--ink);border-radius:20px;padding:0 8px;font-size:12px;margin-inline-start:6px}
+
+/* panels */
+.panel{background:var(--surface);border:1px solid var(--line);border-top:0;border-radius:0 0 var(--radius) var(--radius)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line)}
+.toolbar .grow{flex:1;min-width:180px}
+.toolbar input[type=search]{width:100%}
+.spacer{flex:1}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:20px;padding:4px 12px;font-size:13px;cursor:pointer;font-weight:500}
+.chip[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.chip .n{opacity:.7;margin-inline-start:4px}
+.checkline{display:inline-flex;align-items:center;gap:8px;font-size:14px;cursor:pointer}
+.checkline input{width:16px;height:16px;accent-color:var(--teal)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-weight:600;color:var(--muted);font-size:13px;text-align:start;padding:10px 16px;background:#FAFBFC;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:11px 16px;border-bottom:1px solid #EDF0F3;vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#FAFCFC}
+tr.dim td{opacity:.55}
+.name{font-weight:600}
+.grp{display:inline-block;background:var(--slate-soft);border-radius:6px;padding:0 8px;font-size:12px;font-weight:600;margin-inline-start:8px;direction:ltr}
+.actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.empty{padding:48px 20px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);margin-bottom:4px;font-size:16px}
+.summary{padding:10px 16px;color:var(--muted);font-size:13px;border-top:1px solid var(--line);background:#FAFBFC;border-radius:0 0 var(--radius) var(--radius)}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:7px;border-radius:20px;padding:2px 11px;font-size:13px;font-weight:600;white-space:nowrap}
+.pill i{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none}
+.pill.live{background:var(--teal-soft);color:var(--teal-ink)}
+.pill.live i{animation:pulse 1.6s ease-out infinite}
+.pill.finished{background:var(--green-soft);color:var(--green)}
+.pill.blocked{background:var(--coral-soft);color:var(--coral)}
+.pill.lost{background:var(--amber-soft);color:var(--amber)}
+.pill.auto{background:var(--slate-soft);color:var(--ink)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(11,107,99,.5)}70%{box-shadow:0 0 0 7px rgba(11,107,99,0)}100%{box-shadow:0 0 0 0 rgba(11,107,99,0)}}
+@media (prefers-reduced-motion:reduce){.pill.live i{animation:none}}
+
+/* progress */
+.prog{display:flex;align-items:center;gap:10px;min-width:150px}
+.bar{flex:1;height:6px;background:var(--slate-soft);border-radius:6px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--teal);border-radius:6px;transition:width .4s}
+.bar.pct i{background:var(--green)}
+.warn{color:var(--coral);font-weight:700}
+.timer{font-weight:600}
+.timer.low{color:var(--coral)}
+
+/* dialog + toast */
+dialog{border:0;border-radius:14px;padding:0;max-width:440px;width:calc(100% - 32px);box-shadow:0 20px 60px rgba(22,33,44,.25)}
+dialog::backdrop{background:rgba(22,33,44,.45)}
+.dlg{padding:24px}
+.dlg h3{margin:0 0 8px;font-size:18px}
+.dlg p{margin:0;color:var(--muted)}
+.dlg p b{color:var(--ink)}
+.dlg .row{display:flex;gap:8px;justify-content:flex-start;margin-top:22px}
+.dlg .meter{height:8px;background:var(--slate-soft);border-radius:8px;overflow:hidden;margin-top:18px}
+.dlg .meter i{display:block;height:100%;width:0;background:var(--teal);transition:width .2s}
+#toast{position:fixed;inset-block-end:20px;inset-inline-start:20px;display:flex;flex-direction:column;gap:8px;z-index:50}
+.t{background:var(--ink);color:#fff;border-radius:10px;padding:10px 16px;font-size:14px;box-shadow:0 8px 24px rgba(0,0,0,.2);max-width:360px}
+.t.bad{background:var(--coral)}
+.t.ok{background:var(--teal-ink)}
+.banner{background:var(--amber-soft);color:var(--amber);border:1px solid #F0D79B;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;font-weight:500}
+
+@media (max-width:900px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .kpi:first-child{grid-column:1/-1;border-bottom:1px solid var(--line)}
+  .kpi{border-inline-start:0;border-bottom:1px solid var(--line)}
+}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<section id="login" class="hidden">
+  <div class="login-box">
+    <div class="brand">
+      <div class="brand-mark"><img src="data:image/jpeg;base64,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" alt="المعهد الفني للتمريض - جامعة المنصورة"></div>
+      <h1>لوحة تحكم الامتحان<small id="course-login"></small></h1>
+    </div>
+    <form id="login-form" novalidate>
+      <div class="field"><label for="email">البريد الإلكتروني</label><input id="email" type="email" autocomplete="username" dir="ltr" required></div>
+      <div class="field"><label for="pass">كلمة المرور</label><input id="pass" type="password" autocomplete="current-password" dir="ltr" required></div>
+      <p class="err" id="login-err" role="alert"></p>
+      <button class="btn primary" id="login-btn" type="submit">تسجيل الدخول</button>
+    </form>
+  </div>
+</section>
+
+<!-- ============ APP ============ -->
+<div id="app" class="hidden">
+  <header class="top">
+    <div class="wrap">
+      <div class="brand">
+        <div class="brand-mark"><img src="data:image/jpeg;base64,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" alt="المعهد الفني للتمريض - جامعة المنصورة"></div>
+        <h1>لوحة تحكم الامتحان<small id="course"></small></h1>
+      </div>
+      <div class="top-actions">
+        <span class="sync" id="sync"><i></i><span>آخر تحديث: <span class="num" id="synctime">—</span></span></span>
+        <button class="btn sm" id="btn-refresh" type="button">تحديث الآن</button>
+        <span class="num" id="who"></span>
+        <button class="btn sm" id="btn-logout" type="button">تسجيل الخروج</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="setup-banner" class="banner hidden">قاعدة البيانات غير مجهّزة بعد. افتح Supabase ▸ SQL Editor ونفّذ ملف <b class="num">admin_setup.sql</b>، ثم حدّث الصفحة.</div>
+
+    <div class="kpis" aria-live="polite">
+      <div class="kpi"><b class="num" id="k-live">0</b><span>يمتحنون الآن</span></div>
+      <div class="kpi"><b class="num" id="k-done">0</b><span>سلّموا</span></div>
+      <div class="kpi"><b class="num" id="k-blocked">0</b><span>أُوقف امتحانهم</span></div>
+      <div class="kpi"><b class="num" id="k-lost">0</b><span>انقطع اتصالهم</span></div>
+      <div class="kpi"><b class="num" id="k-all">0</b><span>إجمالي من دخلوا</span></div>
+    </div>
+
+    <div class="dlbar">
+      <div class="dltext"><b>تحميل بيانات الطلاب الذين سلّموا</b><span>الملفات تُحفظ على جهازك، وقد يطلب المتصفح السماح بتحميل أكثر من ملف. العدد الحالي: <b class="num" id="dl-count">0</b> طالب</span></div>
+      <button class="btn primary" id="btn-xlsx" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>
+        تحميل ملف Excel</button>
+      <button class="btn primary" id="btn-zip" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>
+        تحميل كل ملفات PDF (ZIP)</button>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" id="tab-live" aria-selected="true" aria-controls="p-live">الطلاب الآن<span class="count num" id="c-live">0</span></button>
+      <button class="tab" role="tab" id="tab-res" aria-selected="false" aria-controls="p-res">النتائج والملفات<span class="count num" id="c-res">0</span></button>
+    </div>
+
+    <!-- LIVE -->
+    <section class="panel" id="p-live" role="tabpanel" aria-labelledby="tab-live">
+      <div class="toolbar">
+        <div class="chips" id="chips"></div>
+        <div class="grow"><input type="search" id="l-search" placeholder="ابحث باسم الطالب" aria-label="بحث"></div>
+        <select id="l-group" aria-label="المجموعة"><option value="">كل المجموعات</option></select>
+        <button class="btn outline-danger" id="btn-stop-all" type="button">إيقاف كل من يمتحن الآن</button>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>الطالب</th><th>الحالة</th><th>التقدّم</th><th>الوقت المتبقي</th><th>مرات مغادرة الصفحة</th><th></th></tr></thead>
+          <tbody id="live-body"></tbody>
+        </table>
+      </div>
+      <div id="live-empty" class="empty hidden"><b>لا يوجد طلاب بهذه الحالة</b>سيظهر الطالب هنا فور دخوله الامتحان.</div>
+      <div class="pager" id="l-pager"></div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="panel hidden" id="p-res" role="tabpanel" aria-labelledby="tab-res">
+      <div class="toolbar">
+        <div class="grow"><input type="search" id="r-search" placeholder="ابحث باسم الطالب" aria-label="بحث"></div>
+        <select id="r-group" aria-label="المجموعة"><option value="">كل المجموعات</option></select>
+        <select id="r-status" aria-label="الحالة">
+          <option value="">كل الحالات</option>
+          <option value="done">سلّم بنفسه</option>
+          <option value="auto">تسليم تلقائي</option>
+          <option value="stopped">أوقفه الدكتور</option>
+        </select>
+        <select id="r-sort" aria-label="الترتيب">
+          <option value="new">الأحدث أولًا</option>
+          <option value="name">الاسم</option>
+          <option value="high">الأعلى درجة</option>
+          <option value="low">الأقل درجة</option>
+        </select>
+        <label class="checkline"><input type="checkbox" id="r-old"> إظهار المحاولات القديمة</label>
+      </div>
+      <div class="scroll">
+        <table style="min-width:980px">
+          <thead><tr><th>الطالب</th><th>الدرجة</th><th>النسبة</th><th>الزمن</th><th>مغادرة الصفحة</th><th>الحالة</th><th>وقت التسليم (القاهرة)</th><th></th></tr></thead>
+          <tbody id="res-body"></tbody>
+        </table>
+      </div>
+      <div id="res-empty" class="empty hidden"><b>لا توجد نتائج مطابقة</b>غيّر الفلتر أو انتظر تسليم الطلاب.</div>
+      <div class="pager" id="r-pager"></div>
+      <div class="summary" id="res-summary"></div>
+    </section>
+  </main>
+</div>
+
+<!-- dialogs & toasts -->
+<dialog id="dlg"><div class="dlg">
+  <h3 id="dlg-title"></h3><p id="dlg-body"></p>
+  <div class="row"><button class="btn" id="dlg-ok" type="button"></button><button class="btn" id="dlg-cancel" type="button">إلغاء</button></div>
+</div></dialog>
+<dialog id="prog"><div class="dlg">
+  <h3 id="prog-title">جارٍ تجهيز الملفات</h3><p id="prog-text"></p>
+  <div class="meter"><i id="prog-bar"></i></div>
+</div></dialog>
+<div id="toast" aria-live="polite"></div>
+
+<script>
+/* =========================================================
+   الإعدادات — نفس مشروع Supabase المستخدم في index_new.html
+   ========================================================= */
+const CFG = {
+  SUPABASE_URL: "https://kleeaqdjtasuufqfgxur.supabase.co",
+  SUPABASE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsZWVhcWRqdGFzdXVmcWZneHVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE4MjI3NzEsImV4cCI6MjEwNzM5ODc3MX0.HkrzvQJ8PFF5sM9-S3f0LIQJvfFJR2GNG0XiDRa2Eu4",
+  BUCKET: "exam-pdfs",
+  COURSE: "Clinical Obstetric and Gynecological Nursing",
+  DURATION: 300,        // احتياطي فقط — المدة الفعلية بتتقرأ من السيرفر (جدول exam_settings)
+  TOTAL_Q: null,        // عدد الأسئلة؛ لو null يُؤخذ من آخر نتيجة
+  LIVE_WINDOW: 100,     // ثواني بدون نبضة قبل اعتبار الطالب "انقطع اتصاله" (النبضة كل 30 ثانية = 3 نبضات + هامش)
+  POLL_MS: 8000,        // تحديث الإحصائيات والقائمة الظاهرة
+  RESULTS_POLL_MS: 20000,
+  PAGE: 50,             // عدد الصفوف في الصفحة (الترقيم على السيرفر)
+  ZIP_PART_MB: 200,     // أقصى حجم لكل ملف ZIP (عشان ذاكرة المتصفح مع آلاف الـ PDFs)
+  ZIP_PART_FILES: 250
+};
+
+const sb = supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2, '0');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const mmss = sec => { sec = Math.max(0, Math.round(sec)); return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60); };
+const cairo = d => d ? new Date(d).toLocaleString('en-GB', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).replace(',', '') : '';
+const debounce = (fn, ms = 350) => { let h; return (...a) => { clearTimeout(h); h = setTimeout(() => fn(...a), ms); }; };
+$('course').textContent = $('course-login').textContent = CFG.COURSE;
+
+const state = {
+  tab: 'live', stats: null, skew: 0, total: CFG.TOTAL_Q, liveFilter: 'all',
+  lrows: [], ltotal: 0, lpage: 0, rrows: [], rtotal: 0, rpage: 0, polls: []
+};
+
+/* ---------- toast / dialogs ---------- */
+function toast(msg, kind = '') {
+  const t = document.createElement('div'); t.className = 't ' + kind; t.textContent = msg;
+  $('toast').appendChild(t); setTimeout(() => t.remove(), 3800);
+}
+function ask({ title, body, ok, tone = 'danger' }) {
+  return new Promise(res => {
+    $('dlg-title').textContent = title; $('dlg-body').innerHTML = body;
+    const okb = $('dlg-ok'); okb.textContent = ok; okb.className = 'btn ' + tone;
+    const d = $('dlg'); let done = false;
+    const end = v => { if (done) return; done = true; d.close(); res(v); };
+    okb.onclick = () => end(true); $('dlg-cancel').onclick = () => end(false);
+    d.onclose = () => end(false); d.showModal();
+  });
+}
+
+/* ---------- auth ---------- */
+function showLogin(msg) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('login-err').textContent = msg || ''; stopLoop(); }
+async function enter(user) {
+  const { data, error } = await sb.rpc('is_exam_admin');
+  if (error && error.code === 'PGRST202') { $('setup-banner').classList.remove('hidden'); }
+  else if (error || data !== true) { await sb.auth.signOut(); showLogin('هذا الحساب غير مصرّح له بدخول لوحة التحكم.'); return; }
+  $('who').textContent = user.email; $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  startLoop();
+}
+$('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const b = $('login-btn'); b.disabled = true; $('login-err').textContent = '';
+  const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pass').value });
+  b.disabled = false;
+  if (error) { $('login-err').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'; return; }
+  enter(data.user);
+});
+$('btn-logout').onclick = async () => { await sb.auth.signOut(); showLogin(); };
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  session ? enter(session.user) : showLogin();
+})();
+
+/* ---------- data (server-side stats + pagination: 2000 طالب = طلبات صغيرة) ---------- */
+const SUB_COLS = 'id,full_name,group_name,stopped,score,total,percent,time_used,tab_leaves,printscreen_attempts,auto_submitted,weak_topics,pdf_url,submission_id,created_at,archived,late,server_elapsed';
+const busy = {};
+const guard = (k, fn) => async () => { if (busy[k]) return; busy[k] = true; try { await fn(); markSync(true); } catch (e) { markSync(false, e); } finally { busy[k] = false; } };
+function markSync(ok, e) {
+  $('sync').classList.toggle('bad', !ok);
+  if (ok) $('synctime').textContent = new Date().toLocaleTimeString('en-GB');
+  else if (e && (e.code === 'PGRST202' || e.code === '42P01')) $('setup-banner').classList.remove('hidden');
+}
+const nowMs = () => Date.now() + state.skew;
+
+const refreshStats = guard('stats', async () => {
+  const { data, error } = await sb.rpc('admin_stats', { p_window: CFG.LIVE_WINDOW }); if (error) throw error;
+  state.stats = data; state.skew = new Date(data.server_now).getTime() - Date.now();
+  state.total = CFG.TOTAL_Q || data.total_q || null; if (data.duration) CFG.DURATION = data.duration;   // مدة الامتحان من إعدادات السيرفر
+  fillGroups(data.groups || []); renderKpis(); renderChips();
+});
+const refreshRoster = guard('roster', async () => {
+  const { data, error } = await sb.rpc('admin_roster', {
+    p_state: state.liveFilter, p_group: $('l-group').value || null, p_q: $('l-search').value.trim() || null,
+    p_limit: CFG.PAGE, p_offset: state.lpage * CFG.PAGE, p_window: CFG.LIVE_WINDOW
+  });
+  if (error) throw error;
+  if (!data.length && state.lpage > 0) { state.lpage = 0; busy.roster = false; return refreshRoster(); }
+  state.lrows = data; state.ltotal = data.length ? +data[0].total_count : 0; renderLive();
+});
+function subQuery(range) {
+  const g = $('r-group').value, st = $('r-status').value, q = $('r-search').value.trim(), sort = $('r-sort').value;
+  let req = sb.from('exam_submissions').select(SUB_COLS, { count: 'exact' });
+  if (!$('r-old').checked) req = req.eq('archived', false);
+  if (g) req = req.eq('group_name', g);
+  if (st === 'stopped') req = req.eq('stopped', true);
+  if (st === 'auto') req = req.eq('stopped', false).eq('auto_submitted', true);
+  if (st === 'done') req = req.eq('stopped', false).eq('auto_submitted', false);
+  if (q) req = req.ilike('full_name', '%' + q.replace(/[\\%_]/g, '\\$&') + '%');
+  const ord = { new: ['created_at', false], name: ['full_name', true], high: ['percent', false], low: ['percent', true] }[sort];
+  return req.order(ord[0], { ascending: ord[1] }).range(range[0], range[1]);
+}
+const refreshSubs = guard('subs', async () => {
+  const off = state.rpage * CFG.PAGE;
+  const { data, count, error } = await subQuery([off, off + CFG.PAGE - 1]); if (error) throw error;
+  if (!data.length && state.rpage > 0) { state.rpage = 0; busy.subs = false; return refreshSubs(); }
+  state.rrows = data; state.rtotal = count || 0; renderRes();
+});
+const refreshActive = () => Promise.all([refreshStats(), state.tab === 'live' ? refreshRoster() : refreshSubs()]);
+
+function startLoop() {
+  stopLoop(); refreshActive();
+  state.polls = [
+    setInterval(() => { if (!document.hidden) { refreshStats(); if (state.tab === 'live') refreshRoster(); } }, CFG.POLL_MS),
+    setInterval(() => { if (!document.hidden && state.tab === 'res') refreshSubs(); }, CFG.RESULTS_POLL_MS),
+    setInterval(tickTimers, 1000)
+  ];
+  document.addEventListener('visibilitychange', onVis);
+}
+const onVis = () => { if (!document.hidden && !$('app').classList.contains('hidden')) refreshActive(); };
+function stopLoop() { state.polls.forEach(clearInterval); state.polls = []; document.removeEventListener('visibilitychange', onVis); }
+$('btn-refresh').onclick = async () => { await refreshActive(); toast('تم التحديث', 'ok'); };
+
+/* ---------- KPIs / chips / filters ---------- */
+function renderKpis() {
+  const s = state.stats; if (!s) return;
+  $('k-live').textContent = s.live; $('k-blocked').textContent = s.blocked; $('k-lost').textContent = s.lost;
+  $('k-all').textContent = s.entered; $('k-done').textContent = s.submitted;
+  $('c-live').textContent = s.entered; $('c-res').textContent = $('dl-count').textContent = s.submitted;
+  $('btn-stop-all').disabled = s.live + s.lost === 0;
+}
+function renderChips() {
+  const s = state.stats || {}, f = state.liveFilter;
+  const n = { all: s.entered, live: s.live, lost: s.lost, blocked: s.blocked, finished: s.finished };
+  $('chips').innerHTML = [['all', 'الكل'], ['live', 'يمتحن الآن'], ['lost', 'انقطع'], ['blocked', 'موقوف'], ['finished', 'سلّم']]
+    .map(([k, l]) => `<button class="chip" type="button" data-chip="${k}" aria-pressed="${f === k}">${l}<span class="n num">${n[k] ?? 0}</span></button>`).join('');
+}
+function fillGroups(groups) {
+  for (const id of ['l-group', 'r-group']) {
+    const sel = $(id), cur = sel.value, sig = groups.join('|');
+    if (sel.dataset.sig === sig) continue; sel.dataset.sig = sig;
+    sel.innerHTML = '<option value="">كل المجموعات</option>' + groups.map(g => `<option value="${esc(g)}">المجموعة ${esc(g)}</option>`).join('');
+    sel.value = groups.includes(cur) ? cur : '';
+  }
+}
+function pager(el, page, total, key) {
+  const pages = Math.max(1, Math.ceil(total / CFG.PAGE)), from = total ? page * CFG.PAGE + 1 : 0, to = Math.min(total, (page + 1) * CFG.PAGE);
+  el.innerHTML = total <= CFG.PAGE ? '' :
+    `<span>عرض <b class="num">${from}–${to}</b> من <b class="num">${total}</b></span>
+     <div class="pg"><button class="btn sm" data-pg="${key}:prev" ${page === 0 ? 'disabled' : ''}>السابق</button>
+     <span>صفحة <b class="num">${page + 1}</b> من <b class="num">${pages}</b></span>
+     <button class="btn sm" data-pg="${key}:next" ${page + 1 >= pages ? 'disabled' : ''}>التالي</button></div>`;
+}
+document.querySelectorAll('.pager').forEach(el => el.addEventListener('click', e => {
+  const b = e.target.closest('[data-pg]'); if (!b) return; const [k, dir] = b.dataset.pg.split(':'), d = dir === 'next' ? 1 : -1;
+  if (k === 'l') { state.lpage = Math.max(0, state.lpage + d); refreshRoster(); } else { state.rpage = Math.max(0, state.rpage + d); refreshSubs(); }
+}));
+
+/* ---------- live roster ---------- */
+const STATUS_LABEL = { live: 'يمتحن الآن', lost: 'انقطع اتصاله', blocked: 'أُوقف امتحانه', finished: 'سلّم' };
+function renderLive() {
+  const rows = state.lrows, total = state.total;
+  $('live-body').innerHTML = rows.map(s => {
+    const pct = total ? Math.min(100, s.answered / total * 100) : 0, active = s.st === 'live' || s.st === 'lost';
+    const timeCell = s.st === 'live' ? `<span class="timer num" data-left="${new Date(s.started_at).getTime()}"></span>` : '<span class="muted">—</span>';
+    const a = `data-name="${esc(s.full_name)}" data-group="${esc(s.group_name)}"`, btns = [];
+    if (active) btns.push(`<button class="btn sm outline-danger" data-act="stop" ${a}>إيقاف الامتحان</button>`);
+    if (s.st !== 'live') btns.push(`<button class="btn sm" data-act="retry" ${a}>السماح بمحاولة أخرى</button>`);
+    return `<tr>
+      <td><span class="name">${esc(s.full_name)}</span><span class="grp">${esc(s.group_name)}</span>${s.attempt > 1 ? `<span class="muted" style="font-size:12px;margin-inline-start:8px">محاولة ${s.attempt}</span>` : ''}</td>
+      <td><span class="pill ${s.st}"><i></i>${STATUS_LABEL[s.st]}</span></td>
+      <td><div class="prog"><div class="bar"><i style="width:${pct}%"></i></div><span class="num">${s.answered}${total ? ' / ' + total : ''}</span></div></td>
+      <td>${timeCell}</td>
+      <td><span class="num ${s.leaves >= 3 ? 'warn' : ''}">${s.leaves}</span></td>
+      <td><div class="actions">${btns.join('')}</div></td></tr>`;
+  }).join('');
+  $('live-empty').classList.toggle('hidden', rows.length > 0);
+  pager($('l-pager'), state.lpage, state.ltotal, 'l'); tickTimers();
+}
+function tickTimers() {
+  document.querySelectorAll('[data-left]').forEach(el => {
+    const left = CFG.DURATION - (nowMs() - +el.dataset.left) / 1000;
+    el.textContent = left > 0 ? mmss(left) : 'انتهى الوقت'; el.classList.toggle('low', left <= 60);
+  });
+}
+$('chips').addEventListener('click', e => { const b = e.target.closest('[data-chip]'); if (!b) return; state.liveFilter = b.dataset.chip; state.lpage = 0; renderChips(); refreshRoster(); });
+const liveChanged = () => { state.lpage = 0; refreshRoster(); };
+$('l-search').addEventListener('input', debounce(liveChanged)); $('l-group').addEventListener('change', liveChanged);
+
+/* ---------- results ---------- */
+const subStatus = r => r.stopped ? 'stopped' : r.auto_submitted ? 'auto' : 'done';
+const SUB_LABEL = { stopped: ['blocked', 'أوقفه الدكتور'], auto: ['auto', 'تسليم تلقائي'], done: ['finished', 'سلّم بنفسه'] };
+function renderRes() {
+  const rows = state.rrows;
+  $('res-body').innerHTML = rows.map(r => {
+    const [cls, label] = SUB_LABEL[subStatus(r)], pct = Math.round(+r.percent || 0);
+    return `<tr class="${r.archived ? 'dim' : ''}">
+      <td><span class="name">${esc(r.full_name)}</span><span class="grp">${esc(r.group_name)}</span>${r.archived ? '<span class="muted" style="font-size:12px;margin-inline-start:8px">محاولة قديمة</span>' : ''}</td>
+      <td><span class="num">${r.score} / ${r.total}</span></td>
+      <td><div class="prog" style="min-width:120px"><div class="bar pct"><i style="width:${Math.min(100, pct)}%"></i></div><span class="num">${pct}%</span></div></td>
+      <td><span class="num">${mmss(r.time_used)}</span></td>
+      <td><span class="num ${r.tab_leaves >= 3 ? 'warn' : ''}">${r.tab_leaves ?? 0}</span></td>
+      <td><span class="pill ${cls}"><i></i>${label}</span>${r.late ? '<span class="pill lost" style="margin-inline-start:6px" title="التسليم تأخر عن مدة الامتحان حسب ساعة السيرفر">تجاوز الوقت</span>' : ''}</td>
+      <td><span class="num muted">${cairo(r.created_at)}</span></td>
+      <td><div class="actions">
+        ${r.pdf_url ? `<button class="btn sm" data-act="pdf" data-id="${r.id}">تحميل PDF</button>` : '<span class="muted" style="font-size:12px">بدون PDF</span>'}
+        ${r.archived ? '' : `<button class="btn sm" data-act="retry" data-name="${esc(r.full_name)}" data-group="${esc(r.group_name)}">السماح بمحاولة أخرى</button>`}
+      </div></td></tr>`;
+  }).join('');
+  $('res-empty').classList.toggle('hidden', rows.length > 0);
+  pager($('r-pager'), state.rpage, state.rtotal, 'r');
+  const avg = state.stats && state.stats.avg_percent != null ? Math.round(state.stats.avg_percent) + '%' : '—';
+  $('res-summary').innerHTML = `نتائج مطابقة للفلتر: <b class="num">${state.rtotal}</b> — متوسط النسبة العام: <b class="num">${avg}</b>`;
+}
+const resChanged = () => { state.rpage = 0; refreshSubs(); };
+$('r-search').addEventListener('input', debounce(resChanged));
+['r-group', 'r-status', 'r-sort', 'r-old'].forEach(id => $(id).addEventListener('change', resChanged));
+
+/* ---------- tabs ---------- */
+function openTab(which) {
+  state.tab = which; const live = which === 'live';
+  $('tab-live').setAttribute('aria-selected', live); $('tab-res').setAttribute('aria-selected', !live);
+  $('p-live').classList.toggle('hidden', !live); $('p-res').classList.toggle('hidden', live);
+  live ? refreshRoster() : refreshSubs();
+}
+$('tab-live').onclick = () => openTab('live'); $('tab-res').onclick = () => openTab('res');
+
+/* ---------- admin actions ---------- */
+async function rpc(fn, args) {
+  const { data, error } = await sb.rpc(fn, args);
+  if (error) { toast(error.code === 'PGRST202' ? 'الدالة غير موجودة — نفّذ ملف admin_setup.sql أولًا' : 'تعذّر التنفيذ: ' + error.message, 'bad'); return null; }
+  return data ?? 0;
+}
+document.body.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const { act, name, group, id } = b.dataset;
+  if (act === 'stop') {
+    if (!await ask({ title: 'إيقاف الامتحان', body: `سيتم إيقاف امتحان <b>${esc(name)}</b> (مجموعة ${esc(group)}) وتسليم إجاباته الحالية خلال ثوانٍ.`, ok: 'إيقاف الامتحان', tone: 'danger' })) return;
+    if (await rpc('admin_stop_student', { p_name: name, p_group: group }) !== null) { toast('تم إيقاف الامتحان', 'ok'); refreshActive(); }
+  } else if (act === 'retry') {
+    if (!await ask({ title: 'السماح بمحاولة أخرى', body: `سيُسمح لـ <b>${esc(name)}</b> بدخول الامتحان مرة أخرى. نتيجته الحالية تُحفظ كمحاولة قديمة ولا تُحتسب.`, ok: 'السماح بمحاولة أخرى', tone: 'primary' })) return;
+    if (await rpc('admin_allow_retry', { p_name: name, p_group: group }) !== null) { toast('تم السماح بمحاولة جديدة', 'ok'); refreshActive(); }
+  } else if (act === 'pdf') {
+    const r = state.rrows.find(x => String(x.id) === id); if (!r) return;
+    b.disabled = true;
+    try { saveBlob(await getPdfBlob(r.pdf_url), pdfName(r) + '.pdf'); } catch (err) { toast('تعذّر تحميل الملف', 'bad'); }
+    b.disabled = false;
+  }
+});
+$('btn-stop-all').onclick = async () => {
+  const s = state.stats, n = s ? s.live + s.lost : 0; if (!n) return;
+  if (!await ask({ title: 'إيقاف كل الامتحانات الجارية', body: `سيتم إيقاف امتحان <b class="num">${n}</b> طالب وتسليم إجاباتهم الحالية. لا يمكن التراجع عن الإيقاف، لكن يمكنك السماح لأي طالب بمحاولة أخرى لاحقًا.`, ok: 'إيقاف الجميع', tone: 'danger' })) return;
+  if (await rpc('admin_stop_all') !== null) { toast('تم إيقاف الامتحانات الجارية', 'ok'); refreshActive(); }
+};
+
+/* ---------- downloads ---------- */
+const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+const pdfName = r => `${safeName(r.full_name)} - ${r.group_name} - ${Math.round(+r.percent || 0)}%`;
+function saveBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}
+async function getPdfBlob(url) {
+  try { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return await r.blob(); }
+  catch (e) {
+    const marker = `/object/public/${CFG.BUCKET}/`, i = url.indexOf(marker); if (i < 0) throw e;
+    const path = decodeURIComponent(url.slice(i + marker.length).split('?')[0]);
+    const { data, error } = await sb.storage.from(CFG.BUCKET).download(path); if (error) throw error; return data;
+  }
+}
+const weakStr = w => Array.isArray(w) ? w.map(x => typeof x === 'string' ? x : (x.n || x.name || x.topic || JSON.stringify(x))).join('، ') : (w ? String(w) : '');
+async function loadAllSubs() {            // كل من سلّم (المحاولة الحالية) — على دفعات 1000 صف
+  const out = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from('exam_submissions').select(SUB_COLS).eq('archived', false)
+      .order('group_name').order('full_name').range(from, from + 999);
+    if (error) throw error; out.push(...data); if (data.length < 1000) break;
+  }
+  return out;
+}
+const withBusy = async (btn, fn) => { btn.disabled = true; try { await fn(); } finally { btn.disabled = false; } };
+
+$('btn-xlsx').onclick = () => withBusy($('btn-xlsx'), async () => {
+  let rows; try { rows = await loadAllSubs(); } catch (e) { return toast('تعذّر تحميل البيانات من السيرفر', 'bad'); }
+  if (!rows.length) return toast('لا يوجد طلاب سلّموا بعد', 'bad');
+  const data = rows.map(r => ({
+    'الاسم': r.full_name, 'المجموعة': r.group_name, 'الدرجة': r.score, 'من': r.total, 'النسبة %': Math.round((+r.percent || 0) * 10) / 10,
+    'الزمن المستغرق': mmss(r.time_used), 'الزمن حسب السيرفر': r.server_elapsed != null ? mmss(r.server_elapsed) : '', 'تجاوز الوقت': r.late ? 'نعم' : 'لا', 'مرات مغادرة الصفحة': r.tab_leaves ?? 0, 'محاولات تصوير الشاشة': r.printscreen_attempts ?? 0,
+    'الحالة': SUB_LABEL[subStatus(r)][1], 'المواضيع الضعيفة': weakStr(r.weak_topics),
+    'وقت التسليم (القاهرة)': cairo(r.created_at), 'ملف PDF': r.pdf_url ? 'فتح الملف' : ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = [28, 10, 8, 8, 10, 14, 16, 12, 16, 18, 16, 36, 20, 12].map(w => ({ wch: w }));
+  const pdfCol = Object.keys(data[0]).length - 1;
+  rows.forEach((r, i) => { const c = ws[XLSX.utils.encode_cell({ r: i + 1, c: pdfCol })]; if (c && r.pdf_url) c.l = { Target: r.pdf_url }; });
+  const groups = {}; rows.forEach(r => { (groups[r.group_name] = groups[r.group_name] || []).push(r); });
+  const summary = Object.entries(groups).sort().map(([g, a]) => {
+    const p = a.map(x => +x.percent || 0);
+    return { 'المجموعة': g, 'عدد الطلاب': a.length, 'متوسط النسبة %': Math.round(p.reduce((s, x) => s + x, 0) / p.length * 10) / 10, 'أعلى نسبة %': Math.max(...p), 'أقل نسبة %': Math.min(...p), 'أُوقف امتحانهم': a.filter(x => x.stopped).length };
+  });
+  const wb = XLSX.utils.book_new(); wb.Workbook = { Views: [{ RTL: true }] };
+  XLSX.utils.book_append_sheet(wb, ws, 'النتائج');
+  if (summary.length) { const w2 = XLSX.utils.json_to_sheet(summary); w2['!cols'] = [12, 12, 16, 14, 14, 16].map(w => ({ wch: w })); XLSX.utils.book_append_sheet(wb, w2, 'ملخص المجموعات'); }
+  XLSX.writeFile(wb, `exam-results-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  toast(`تم تحميل ملف Excel (${rows.length} طالب)`, 'ok');
+});
+
+$('btn-zip').onclick = () => withBusy($('btn-zip'), async () => {
+  let all; try { all = await loadAllSubs(); } catch (e) { return toast('تعذّر تحميل البيانات من السيرفر', 'bad'); }
+  const rows = all.filter(r => r.pdf_url); if (!rows.length) return toast('لا توجد ملفات PDF لتحميلها بعد', 'bad');
+  const d = $('prog'), bar = $('prog-bar'), txt = $('prog-text'); bar.style.width = '0'; d.showModal();
+  const date = new Date().toISOString().slice(0, 10), used = new Set(), failed = [];
+  let zip = new JSZip(), bytes = 0, files = 0, part = 1, done = 0;
+  const flush = async () => {                // ZIP على أجزاء + بدون ضغط (الـ PDF مضغوط أصلًا) لحماية ذاكرة المتصفح
+    if (!files) return; txt.textContent = `جارٍ إنشاء الملف رقم ${part}…`;
+    saveBlob(await zip.generateAsync({ type: 'blob', compression: 'STORE' }), `exam-pdfs-${date}-part${pad(part)}.zip`);
+    zip = new JSZip(); bytes = 0; files = 0; part++; await sleep(800);
+  };
+  const one = async r => {
+    try {
+      let n = `${r.group_name}/${pdfName(r)}`, k = 1; while (used.has(n)) n = `${r.group_name}/${pdfName(r)} (${++k})`; used.add(n);
+      const blob = await getPdfBlob(r.pdf_url); zip.file(n + '.pdf', blob); bytes += blob.size; files++;
+    } catch (e) { failed.push(r.full_name); }
+    done++; bar.style.width = (done / rows.length * 100) + '%'; txt.textContent = `تم تحميل ${done} من ${rows.length}`;
+  };
+  try {
+    for (let i = 0; i < rows.length; i += 6) {
+      await Promise.all(rows.slice(i, i + 6).map(one));
+      if (bytes > CFG.ZIP_PART_MB * 1048576 || files >= CFG.ZIP_PART_FILES) await flush();
+    }
+    await flush();
+  } catch (e) { failed.push('إنشاء الملف'); }
+  d.close();
+  const parts = part - 1;
+  failed.length ? toast(`تم التحميل (${parts} ملف ZIP)، وتعذّر ${failed.length} ملف`, 'bad') : toast(`تم تحميل ${rows.length} ملف PDF في ${parts} ملف ZIP`, 'ok');
+});
+</script>
+</body>
+</html>
