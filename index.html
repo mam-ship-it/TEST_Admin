@@ -8,8 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script>window.supabase||document.write('<script src="https://unpkg.com/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"><\/script>');</script>
-<script>window.supabase||document.write('<script src="supabase.js"><\/script>');</script>   <!-- اختياري: نسخة محلية بجوار index.html -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
@@ -163,6 +161,16 @@ dialog::backdrop{background:rgba(22,33,44,.45)}
   .kpi:first-child{grid-column:1/-1;border-bottom:1px solid var(--line)}
   .kpi{border-inline-start:0;border-bottom:1px solid var(--line)}
 }
+
+/* quiz sheet fill */
+.qzhelp,.qzwarn,.qzsum{display:block;font-size:14px;line-height:1.7}
+.qzwarn{margin-top:10px;padding:8px 12px;border-radius:8px;background:var(--amber-soft);color:var(--amber)}
+.qzwarn ul{margin:6px 0 0;padding-inline-start:20px;max-height:140px;overflow:auto}
+.qzhead{display:flex;justify-content:space-between;margin-top:14px;padding:0 10px 4px;font-size:12px;color:var(--muted)}
+.qzlist{display:block;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.qzrow{display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid var(--line);cursor:pointer;color:var(--ink)}
+.qzrow:last-child{border-bottom:0}.qzrow:hover{background:var(--slate-soft)}.qzrow b{flex:1}
+.qzrow input{accent-color:var(--teal);width:16px;height:16px}
 </style>
 </head>
 <body>
@@ -203,6 +211,11 @@ dialog::backdrop{background:rgba(22,33,44,.45)}
   <main class="wrap">
     <div id="setup-banner" class="banner hidden">قاعدة البيانات غير مجهّزة بعد. افتح Supabase ▸ SQL Editor ونفّذ ملف <b class="num">admin_setup.sql</b>، ثم حدّث الصفحة.</div>
 
+    <div id="closebar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;border:1px solid var(--line,#ddd);border-radius:14px;padding:12px 16px;margin-bottom:14px;background:var(--surface,#fff)">
+      <div><b id="close-title">الامتحان مفتوح</b><div class="muted" id="close-sub" style="font-size:13px">اضغط "إنهاء الامتحان" بعد انتهاء الوقت: لن يستطيع أي طالب الدخول أو الإجابة، وتظهر لهم رسالة أن الوقت انتهى وتُسلَّم إجاباتهم تلقائيًا.</div></div>
+      <button class="btn outline-danger" id="btn-close" type="button">⏰ إنهاء الامتحان (انتهى الوقت)</button>
+    </div>
+
     <div class="kpis" aria-live="polite">
       <div class="kpi"><b class="num" id="k-live">0</b><span>يمتحنون الآن</span></div>
       <div class="kpi"><b class="num" id="k-done">0</b><span>سلّموا</span></div>
@@ -219,6 +232,14 @@ dialog::backdrop{background:rgba(22,33,44,.45)}
       <button class="btn primary" id="btn-zip" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3"/></svg>
         تحميل كل ملفات PDF (ZIP)</button>
+    </div>
+
+    <div class="dlbar">
+      <div class="dltext"><b>تعبئة شيت التقييم (Quiz 1)</b><span>ارفع ملف الـ Excel الخاص بالمجموعات، وسيُضاف عمود Quiz1 بدرجة كل طالب (من 10)، و«غ» للغائب، و«موقوف» لمن أوقفه الدكتور. يُحمَّل ملف جديد والأصلي لا يتغير.</span></div>
+      <input type="file" id="quiz-file" accept=".xlsx" class="hidden">
+      <button class="btn primary" id="btn-quiz" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4m0 0l-4 4m4-4l4 4M4 17v3h16v-3"/></svg>
+        رفع الشيت وتعبئته</button>
     </div>
 
     <div class="tabs" role="tablist">
@@ -426,6 +447,12 @@ function renderKpis() {
   $('k-all').textContent = s.entered; $('k-done').textContent = s.submitted;
   $('c-live').textContent = s.entered; $('c-res').textContent = $('dl-count').textContent = s.submitted;
   $('btn-stop-all').disabled = s.live + s.lost === 0;
+  const cl = !!s.closed, bar = $('closebar');
+  bar.style.borderColor = cl ? '#E7B5C0' : ''; bar.style.background = cl ? 'var(--coral-soft,#fdecef)' : '';
+  $('close-title').textContent = cl ? '⛔ الامتحان مغلق — انتهى الوقت' : 'الامتحان مفتوح';
+  $('close-sub').textContent = cl ? 'لا يستطيع أي طالب الدخول، ومن كان يمتحن تظهر له رسالة انتهاء الوقت وتُسلَّم إجاباته خلال حوالي 30 ثانية.' : 'اضغط "إنهاء الامتحان" بعد انتهاء الوقت: لن يستطيع أي طالب الدخول أو الإجابة، وتظهر لهم رسالة أن الوقت انتهى وتُسلَّم إجاباتهم تلقائيًا.';
+  $('btn-close').textContent = cl ? '🔓 إعادة فتح الامتحان' : '⏰ إنهاء الامتحان (انتهى الوقت)';
+  $('btn-close').className = 'btn ' + (cl ? 'primary' : 'outline-danger');
 }
 function renderChips() {
   const s = state.stats || {}, f = state.liveFilter;
@@ -551,6 +578,15 @@ $('btn-stop-all').onclick = async () => {
   if (await rpc('admin_stop_all') !== null) { toast('تم إيقاف الامتحانات الجارية', 'ok'); refreshActive(); }
 };
 
+$('btn-close').onclick = async () => {
+  const closed = !!(state.stats && state.stats.closed), n = state.stats ? state.stats.live + state.stats.lost : 0;
+  const ok = closed
+    ? await ask({ title: 'إعادة فتح الامتحان', body: 'سيُسمح للطلاب بالدخول مرة أخرى (الطلاب الذين لم يسلّموا بعد).', ok: 'إعادة الفتح', tone: 'primary' })
+    : await ask({ title: 'إنهاء الامتحان', body: `سيُغلق الامتحان فورًا: لن يستطيع أي طالب الدخول، وسيظهر لـ <b class="num">${n}</b> طالب ما زالوا يمتحنون أن الوقت انتهى وتُسلَّم إجاباتهم الحالية تلقائيًا خلال حوالي 30 ثانية. يمكنك إعادة الفتح لاحقًا.`, ok: 'إنهاء الامتحان', tone: 'danger' });
+  if (!ok) return;
+  if (await rpc('admin_set_closed', { p_closed: !closed }) !== null) { toast(closed ? 'تم إعادة فتح الامتحان' : 'تم إنهاء الامتحان وإغلاقه', 'ok'); await refreshStats(); refreshActive(); }
+};
+
 /* ---------- downloads ---------- */
 const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80);
 const pdfName = r => `${safeName(r.full_name)} - ${r.group_name} - ${Math.round(+r.percent || 0)}%`;
@@ -632,6 +668,197 @@ $('btn-zip').onclick = () => withBusy($('btn-zip'), async () => {
   const parts = part - 1;
   failed.length ? toast(`تم التحميل (${parts} ملف ZIP)، وتعذّر ${failed.length} ملف`, 'bad') : toast(`تم تحميل ${rows.length} ملف PDF في ${parts} ملف ZIP`, 'ok');
 });
+
+/* ---------- تعبئة شيت التقييم (عمود Quiz 1) ----------
+   بنعدّل ملف الـ xlsx مباشرة (XML) عشان التنسيق والألوان والحدود تفضل زي ما هي. */
+const QZ = {
+  MAX: 10,          // الدرجة العظمى لعمود Quiz1 في الشيت
+  DECIMALS: 2,      // عدد الخانات العشرية للدرجة بعد التحويل لـ 10
+  ABSENT: 'غ',      // الطالب الغائب (ما دخلش الامتحان / ما سلّمش)
+  STOPPED: 'موقوف', // الطالب اللي أوقفه الدكتور أثناء الامتحان
+  MIN_COL_W: 7      // أقل عرض لعمود Quiz1 عشان الدرجة وكلمة "موقوف" يظهروا كاملين
+};
+const QZ_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const QZ_RNS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const qzNorm = s => String(s ?? '').normalize('NFC')
+  .replace(/[\u064B-\u065F\u0670\u0640]/g, '').replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+  .replace(/ؤ/g, 'و').replace(/ئ/g, 'ي').replace(/\s+/g, ' ').trim().toLowerCase();
+const qzKey = s => String(s ?? '').replace(/\s+/g, '').toUpperCase();
+const qzColNum = ref => { let n = 0; for (const ch of /^([A-Z]+)/.exec(ref)[1]) n = n * 26 + ch.charCodeAt(0) - 64; return n; };
+const qzColLetters = n => { let s = ''; while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); } return s; };
+const qzParse = t => new DOMParser().parseFromString(t, 'application/xml');
+const qzTags = (el, name) => Array.from(el.getElementsByTagNameNS(QZ_NS, name));
+
+function qzCellText(c, ss) {
+  const t = c.getAttribute('t');
+  if (t === 'inlineStr') return qzTags(c, 't').map(x => x.textContent).join('');
+  const v = qzTags(c, 'v')[0]; if (!v) return '';
+  return t === 's' ? (ss[+v.textContent] ?? '') : v.textContent;
+}
+
+function qzScanSheet(doc, ss) {
+  const rows = qzTags(doc, 'row');
+  let quizCol = 0, nameCol = 0, headRow = 0;
+  for (const row of rows) {
+    const rn = +row.getAttribute('r'); if (rn > 10) break;
+    for (const c of qzTags(row, 'c')) {
+      const tx = qzNorm(qzCellText(c, ss)); if (!tx) continue;
+      if (!quizCol && /^quiz\s*1\b/.test(tx)) { quizCol = qzColNum(c.getAttribute('r')); headRow = Math.max(headRow, rn); }
+      if (!nameCol && /^(names?|الاسم|اسم الطالب|الاسماء)$/.test(tx)) { nameCol = qzColNum(c.getAttribute('r')); headRow = Math.max(headRow, rn); }
+    }
+  }
+  const students = [];
+  if (quizCol && nameCol) {
+    for (const row of rows) {
+      const rn = +row.getAttribute('r'); if (rn <= headRow) continue;
+      const c = qzTags(row, 'c').find(x => qzColNum(x.getAttribute('r')) === nameCol); if (!c) continue;
+      const name = qzCellText(c, ss).trim(); if (name) students.push({ row: rn, name, n: qzNorm(name) });
+    }
+  }
+  return { quizCol, nameCol, headRow, students };
+}
+
+async function qzReadBook(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const wbF = zip.file('xl/workbook.xml'), relF = zip.file('xl/_rels/workbook.xml.rels');
+  if (!wbF || !relF) throw new Error('not an xlsx file');
+  const wbDoc = qzParse(await wbF.async('string')), relDoc = qzParse(await relF.async('string'));
+  const rels = {}; for (const r of Array.from(relDoc.getElementsByTagName('Relationship'))) rels[r.getAttribute('Id')] = r.getAttribute('Target');
+  let ss = []; const ssF = zip.file('xl/sharedStrings.xml');
+  if (ssF) ss = qzTags(qzParse(await ssF.async('string')), 'si').map(si => qzTags(si, 't').filter(t => t.parentNode.localName !== 'rPh').map(t => t.textContent).join(''));
+  const sheets = [];
+  for (const s of qzTags(wbDoc, 'sheet')) {
+    const tg = rels[s.getAttributeNS(QZ_RNS, 'id') || s.getAttribute('r:id')]; if (!tg) continue;
+    const path = tg.startsWith('/') ? tg.slice(1) : 'xl/' + tg, f = zip.file(path); if (!f) continue;
+    const doc = qzParse(await f.async('string'));
+    sheets.push({ name: s.getAttribute('name'), path, doc, ...qzScanSheet(doc, ss) });
+  }
+  return { zip, sheets };
+}
+
+/* مطابقة الطلاب اللي سلّموا مع صفوف الشيت (بالاسم بعد توحيد الحروف العربية؛ والاسم المقطوع في الشيت يتطابق بالبداية) */
+function qzMatch(book, subs) {
+  const usable = book.sheets.filter(s => s.quizCol && s.nameCol);
+  const bySheet = new Map(usable.map(s => [qzKey(s.name), s]));
+  const global = new Map();
+  for (const sh of usable) for (const st of sh.students) { if (!global.has(st.n)) global.set(st.n, []); global.get(st.n).push({ sh, st }); }
+  const byStudent = new Map(), unmatched = [], moved = [];
+  for (const r of subs) {
+    const n = qzNorm(r.full_name); let hit = null;
+    const sh = bySheet.get(qzKey(r.group_name));
+    if (sh) {
+      let st = sh.students.find(s => s.n === n);
+      if (!st) {
+        const c = sh.students.filter(s => { const a = s.n.length < n.length ? s.n : n, b = s.n.length < n.length ? n : s.n; return a.length >= 12 && b.startsWith(a); });
+        if (c.length === 1) st = c[0];
+      }
+      if (st) hit = { sh, st };
+    }
+    if (!hit) {   // الاسم مش في شيت مجموعته → ندوّر عليه في باقي الشيتات (لو الاسم فريد)
+      const g = global.get(n);
+      if (g && g.length === 1) { hit = g[0]; moved.push({ name: r.full_name, from: r.group_name, to: hit.sh.name }); }
+    }
+    if (!hit) { unmatched.push(r); continue; }
+    const prev = byStudent.get(hit.st);
+    if (!prev || new Date(r.created_at) > new Date(prev.created_at)) byStudent.set(hit.st, r);
+  }
+  return { usable, byStudent, unmatched, moved };
+}
+
+function qzSetCell(doc, rowNo, colN, val) {
+  const sd = qzTags(doc, 'sheetData')[0];
+  let row = qzTags(sd, 'row').find(r => +r.getAttribute('r') === rowNo);
+  if (!row) {
+    row = doc.createElementNS(QZ_NS, 'row'); row.setAttribute('r', String(rowNo));
+    const next = qzTags(sd, 'row').find(r => +r.getAttribute('r') > rowNo); sd.insertBefore(row, next || null);
+  }
+  let cell = null, before = null, prev = null;
+  for (const c of qzTags(row, 'c')) {
+    const cn = qzColNum(c.getAttribute('r'));
+    if (cn === colN) { cell = c; break; } if (cn > colN) { before = c; break; } prev = c;
+  }
+  if (!cell) {
+    cell = doc.createElementNS(QZ_NS, 'c'); cell.setAttribute('r', qzColLetters(colN) + rowNo);
+    const sref = prev || before; if (sref && sref.getAttribute('s')) cell.setAttribute('s', sref.getAttribute('s'));
+    row.insertBefore(cell, before);
+  }
+  const had = !!((qzTags(cell, 'v')[0] || qzTags(cell, 't')[0] || {}).textContent);
+  while (cell.firstChild) cell.removeChild(cell.firstChild);
+  cell.removeAttribute('t');
+  if (typeof val === 'number') {
+    cell.setAttribute('t', 'n'); const v = doc.createElementNS(QZ_NS, 'v'); v.textContent = String(val); cell.appendChild(v);
+  } else {
+    cell.setAttribute('t', 'inlineStr'); const is = doc.createElementNS(QZ_NS, 'is'), t = doc.createElementNS(QZ_NS, 't');
+    t.textContent = val; is.appendChild(t); cell.appendChild(is);
+  }
+  return had;
+}
+
+function qzWidenCol(doc, colN, minW) {
+  const cols = qzTags(doc, 'cols')[0]; if (!cols) return;
+  for (const c of qzTags(cols, 'col')) {
+    const mn = +c.getAttribute('min'), mx = +c.getAttribute('max');
+    if (mn <= colN && colN <= mx) { if (mn === mx && (+c.getAttribute('width') || 0) < minW) { c.setAttribute('width', String(minW)); c.setAttribute('customWidth', '1'); } return; }
+  }
+}
+
+const qzScore = r => {
+  const raw = +r.total > 0 ? (+r.score / +r.total) * QZ.MAX : ((+r.percent || 0) / 100) * QZ.MAX, k = Math.pow(10, QZ.DECIMALS);
+  return Math.round(raw * k) / k;
+};
+
+async function qzBuild(book, match, sheetKeys) {
+  const out = { filled: 0, absent: 0, stopped: 0, overwritten: 0, sheets: 0 };
+  for (const sh of match.usable) {
+    if (!sheetKeys.has(qzKey(sh.name))) continue;
+    for (const st of sh.students) {
+      const sub = match.byStudent.get(st);
+      let val; if (!sub) { val = QZ.ABSENT; out.absent++; } else if (sub.stopped) { val = QZ.STOPPED; out.stopped++; } else { val = qzScore(sub); out.filled++; }
+      if (qzSetCell(sh.doc, st.row, sh.quizCol, val)) out.overwritten++;
+    }
+    qzWidenCol(sh.doc, sh.quizCol, QZ.MIN_COL_W); out.sheets++;
+    book.zip.file(sh.path, '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n' + new XMLSerializer().serializeToString(sh.doc));
+  }
+  out.blob = await book.zip.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return out;
+}
+
+/* ---- الواجهة ---- */
+function qzSheetRows(match) {
+  return match.usable.map(sh => ({ sh, total: sh.students.length, sub: sh.students.filter(s => match.byStudent.has(s)).length }));
+}
+$('btn-quiz').onclick = () => $('quiz-file').click();
+$('quiz-file').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  await withBusy($('btn-quiz'), async () => {
+    let book; try { book = await qzReadBook(await f.arrayBuffer()); } catch (err) { return toast('الملف غير صالح — اختر ملف Excel بصيغة xlsx', 'bad'); }
+    if (!book.sheets.some(s => s.quizCol && s.nameCol)) return toast('لم أجد عمودي Names و Quiz1 في أي شيت داخل الملف', 'bad');
+    let subs; try { subs = await loadAllSubs(); await refreshStats(); } catch (err) { return toast('تعذّر تحميل البيانات من السيرفر', 'bad'); }
+    const match = qzMatch(book, subs), rows = qzSheetRows(match), pending = state.stats ? (state.stats.live || 0) + (state.stats.lost || 0) : 0;
+    const list = rows.map(({ sh, total, sub }, i) => `<label class="qzrow"><input type="checkbox" data-qz="${i}" ${sub ? 'checked' : ''}><b>${esc(sh.name)}</b><span class="num muted">${sub} / ${total}</span></label>`).join('');
+    const ok = await ask({
+      title: 'تعبئة عمود Quiz 1', ok: 'تعبئة وتحميل الملف', tone: 'primary',
+      body: `<span class="qzhelp">اختر الشيتات (المجموعات) التي أُجري لها الامتحان. الطالب الذي لم يسلّم في شيت مختار يُكتب له <b>${QZ.ABSENT}</b>، ومن أوقفه الدكتور يُكتب له <b>${QZ.STOPPED}</b>. الشيتات غير المختارة لا تُمس.</span>
+        ${pending ? `<span class="qzwarn">ما زال <b class="num">${pending}</b> طالبًا يمتحنون أو انقطع اتصالهم ولم يسلّموا، وسيُسجَّلون غائبين إن حمّلت الملف الآن.</span>` : ''}
+        <span class="qzhead"><span>الشيت</span><span>سلّموا / عدد الطلاب</span></span><span class="qzlist">${list}</span>`
+    });
+    if (!ok) return;
+    const picked = new Set(Array.from($('dlg-body').querySelectorAll('input[data-qz]:checked')).map(x => qzKey(rows[+x.dataset.qz].sh.name)));
+    if (!picked.size) return toast('لم تختر أي شيت', 'bad');
+    let res; try { res = await qzBuild(book, match, picked); } catch (err) { console.error(err); return toast('تعذّر تعديل الملف', 'bad'); }
+    saveBlob(res.blob, f.name.replace(/\.xlsx$/i, '') + ' - Quiz1.xlsx');
+    const lost = match.unmatched.filter(r => picked.has(qzKey(r.group_name)) || !match.usable.some(s => qzKey(s.name) === qzKey(r.group_name)));
+    const li = a => a.slice(0, 20).map(x => `<li>${esc(x)}</li>`).join('') + (a.length > 20 ? `<li>… و${a.length - 20} آخرين</li>` : '');
+    $('dlg-cancel').style.display = 'none';
+    await ask({
+      title: 'تمت التعبئة', ok: 'تم', tone: 'primary',
+      body: `<span class="qzsum">تمت تعبئة <b class="num">${res.sheets}</b> شيت: <b class="num">${res.filled}</b> درجة، <b class="num">${res.absent}</b> غائب (${QZ.ABSENT})، <b class="num">${res.stopped}</b> موقوف.${res.overwritten ? ` استُبدلت <b class="num">${res.overwritten}</b> قيمة كانت موجودة في العمود.` : ''}</span>
+        ${lost.length ? `<span class="qzwarn">لم أجد <b class="num">${lost.length}</b> طالبًا في الشيت، راجع أسماءهم يدويًا:<ul>${li(lost.map(r => `${r.full_name} (${r.group_name}) — ${r.stopped ? QZ.STOPPED : qzScore(r)}`))}</ul></span>` : ''}
+        ${match.moved.length ? `<span class="qzwarn">طلاب وُجدوا في شيت غير مجموعتهم:<ul>${li(match.moved.map(m => `${m.name}: ${m.from} ← ${m.to}`))}</ul></span>` : ''}`
+    });
+    $('dlg-cancel').style.display = '';
+  });
+};
 </script>
 </body>
 </html>
