@@ -361,24 +361,34 @@ function ask({ title, body, ok, tone = 'danger' }) {
 /* ---------- auth ---------- */
 function showLogin(msg) { $('app').classList.add('hidden'); $('login').classList.remove('hidden'); $('login-err').textContent = msg || ''; stopLoop(); }
 async function enter(user) {
-  const { data, error } = await sb.rpc('is_exam_admin');
+  let data, error;
+  try { ({ data, error } = await sb.rpc('is_exam_admin')); }
+  catch (e) { showLogin('تعذر الاتصال بالسيرفر. تأكد من الإنترنت وحاول مرة أخرى.'); return; }
   if (error && error.code === 'PGRST202') { $('setup-banner').classList.remove('hidden'); }
-  else if (error || data !== true) { await sb.auth.signOut(); showLogin('هذا الحساب غير مصرّح له بدخول لوحة التحكم.'); return; }
+  else if (error) { showLogin('تعذر التحقق من صلاحية الحساب الآن (' + (error.message || error.code || 'خطأ') + '). حاول مرة أخرى.'); return; }
+  else if (data !== true) { await sb.auth.signOut(); showLogin('هذا الحساب غير مصرّح له بدخول لوحة التحكم.'); return; }
   $('who').textContent = user.email; $('login').classList.add('hidden'); $('app').classList.remove('hidden');
   startLoop();
 }
 $('login-form').addEventListener('submit', async e => {
   e.preventDefault();
   const b = $('login-btn'); b.disabled = true; $('login-err').textContent = '';
-  const { data, error } = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pass').value });
+  let res;
+  try { res = await sb.auth.signInWithPassword({ email: $('email').value.trim(), password: $('pass').value }); }
+  catch (x) { b.disabled = false; $('login-err').textContent = 'تعذر الاتصال بالسيرفر. تأكد من الإنترنت وحاول مرة أخرى.'; return; }
   b.disabled = false;
-  if (error) { $('login-err').textContent = 'البريد الإلكتروني أو كلمة المرور غير صحيحة.'; return; }
+  const { data, error } = res;
+  if (error) {
+    const bad = error.status === 400 || /invalid login|credentials/i.test(error.message || '');
+    $('login-err').textContent = bad ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'تعذر تسجيل الدخول الآن: ' + (error.message || 'خطأ في الاتصال') + '. حاول بعد قليل.';
+    return;
+  }
   enter(data.user);
 });
 $('btn-logout').onclick = async () => { await sb.auth.signOut(); showLogin(); };
 (async () => {
-  const { data: { session } } = await sb.auth.getSession();
-  session ? enter(session.user) : showLogin();
+  try { const { data: { session } } = await sb.auth.getSession(); session ? enter(session.user) : showLogin(); }
+  catch (e) { showLogin('تعذر الاتصال بالسيرفر. حدّث الصفحة بعد قليل.'); }
 })();
 
 /* ---------- data (server-side stats + pagination: 2000 طالب = طلبات صغيرة) ---------- */
@@ -859,6 +869,7 @@ $('quiz-file').onchange = async e => {
     $('dlg-cancel').style.display = '';
   });
 };
+setTimeout(() => { if ($('login').classList.contains('hidden') && $('app').classList.contains('hidden')) showLogin('تعذر تحميل البيانات. حدّث الصفحة.'); }, 4000);
 </script>
 </body>
 </html>
